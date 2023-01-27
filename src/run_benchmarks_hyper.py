@@ -4,41 +4,24 @@
 '''
 Master code for executing hyperparameter tuning benchmarks
 '''
+import argparse
+import logging
+logging.getLogger('matplotlib.font_manager').disabled = True
+import numpy as np
+np.random.seed(42)
+from utils.training import split_data, DBSCAN_Clustering, lgbm_model_hyper
+from utils.data_processing import read_data, filter_clusters
+import joblib
+import pathlib
 
-if __name__ == "__main__":
-
-    import argparse
-    import logging
-    logging.getLogger('matplotlib.font_manager').disabled = True
-    import numpy as np
-    np.random.seed(42)
-    from utils.training import split_data, DBSCAN_Clustering, lgbm_model_hyper
-    from utils.data_processing import read_data, filter_clusters
-    import joblib
-    import pathlib
-
-    parser = argparse.ArgumentParser()
-
-    parser.add_argument('-l',
-                        '--logfile',
-                        type=str,
-                        default="",
-                        help="log file to output benchmarking results to")
-
-    parser.add_argument('-i',
-                        '--intel',
-                        default=False,
-                        action="store_true",
-                        help="use intel accelerated technologies where available")
-
-    FLAGS = parser.parse_args()
+def main(FLAGS):
 
     if FLAGS.logfile == "":
         logging.basicConfig(level=logging.DEBUG)
     else:
         path = pathlib.Path(FLAGS.logfile)
         path.parent.mkdir(parents=True, exist_ok=True)
-        logging.basicConfig(filename=FLAGS.logfile, level=logging.DEBUG)
+        logging.basicConfig(handlers=[logging.FileHandler(FLAGS.logfile), logging.StreamHandler()], level=logging.DEBUG)
         
     logger = logging.getLogger()
     intel_flag = FLAGS.intel
@@ -85,3 +68,27 @@ if __name__ == "__main__":
     logger.info("=======> LGBM training time for full data = %s", str(train_time))
     MODEL_FILE = 'Full_' + MODEL_FILE1
     joblib.dump(lgb_model_full, MODEL_FILE)
+
+    handlers = logger.handlers[:]
+    for handler in handlers:
+        logger.removeHandler(handler)
+        handler.close()
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument('-l',
+                        '--logfile',
+                        type=str,
+                        default="",
+                        help="log file to output benchmarking results to")
+
+    parser.add_argument('-i',
+                        '--intel',
+                        default=False,
+                        action="store_true",
+                        help="use intel accelerated technologies where available")
+
+    FLAGS = parser.parse_args()
+
+    main(FLAGS)

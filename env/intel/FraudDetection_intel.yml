@@ -2,8 +2,14 @@ name: FraudDetection_intel
 channels:
   - intel
 dependencies:
-  - intelpython3_full
-  - pip=21.2.4
+  - intelpython3_full==2022.2.1
+  - pip
+  - jupyter_server
+  - nb_conda_kernels
+  - scikit-learn<=1.1.3
+  - daal4py<2023.0.0
   - pip:
     - lightgbm==3.3.2
     - matplotlib==3.5.3
+    - notebook
+    - ipykernel
