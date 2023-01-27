@@ -2,10 +2,11 @@
 
 Credit card transactions can be stratified using DBSCAN clustering. The stratified data then can be used to train an LGBM model to identify fraudulent transactions. The Intel AI Analytics Toolkit (AI Kit) gives data scientists, AI developers, and researchers familiar Python tools and frameworks to accelerate end-to-end data science and analytics pipelines on Intel architectures. The components are built using oneAPI libraries for low-level compute optimizations.We will use the The Intel Extension for Scikit-learn and daal4py to accelerate the clustering and inference stages of this solution.
 
-Table of Contents
-# **Contents**
+
+# **Table of Contents**
  - [Purpose](#purpose)
  - [Reference Solution](#reference-solution)
+ - [Python Scripts and Jupyter Notebook](#python-scripts-and-jupyter-notebook)
  - [Comparing Performance Benefits](#comparing-performance-benefits)
  - [Key Takeaways](#key-takeaways)
  - [Appendix](#appendix)
@@ -27,9 +28,9 @@ This section provides key implementation details on the proposed reference solut
 
 
 ### **Proposed Architecture**
-A schematic of the proposed reference architecture is shown in the following figure. We start off with Data Ingestion followed by DBSCAN clustering. The raw data is highly skewed with fraudulent transactions making up <0.2% of the total data. Training a model on this will likely result in a biased model. We address this using DBSCAN Clustering. It helps group transactions that are similar in the feature space together. data pertaining to select clusters which have the maximum ratio of fraudulent transactions are then chosen for LGBM based supervised ML training and hyperparameter tuning. The dataset post clustering will be significantly undersampled **from 200K to less than 1000** but the ratio of fraudulent transactions will be improved to **>30%**. And we will see - because of the improved stratification - the performance of a model trained on an undersampled (clustered) dataset is still better than that of a model trained on the full dataset. 
+A schematic of the proposed reference architecture is shown in the following figure. We start off with Data Ingestion followed by DBSCAN clustering. Data pertaining to select clusters which have the maximum ratio of fraudulent transactions are then chosen for LGBM based supervised ML training and hyperparameter tuning. 
 
-Post clustering we can perform Hyperparameter tuning with cross validation to optimize the model configuration and further enhance prediction accuracy on test data - it will directly provide the best performing model configuration for running inference.
+DBSCAN Clustering is used here to "enhance" the ingested data and improve accuracy on unseen test data. Hyperparameter tuning with cross validation is included to optimize the model configuration and further enhance prediction accuracy on test data - it will directly provide the best performing model configuration for running inference.
 
 This trained LGBM model can then be used for Streaming/Batch Prediction. 
 
@@ -48,11 +49,25 @@ The model can then be saved on a server which can respond to requests from a cli
 Clone the git repository using the following command:
 ```shell
 git clone https://www.github.com/oneapi-src/credit-card-fraud-detection
-```
 
-Once repo is cloned, navigate to the parent directory. The script `setupenv.sh` is provided to automate the setup of the conda environments necessary. Once you clone the git repo on your workstation/virtual machine (VM), in the parent directory, execute the following command
+chmod o+w credit-card-fraud-detection/
+```
+Once repo is cloned, navigate to the parent directory. The reference kit can be ran on a docker container or using conda environments. 
+To install it on a docker container go to the docker directory and run: 
+```shell
+ chmod +x setup.sh
+ ./setup.sh
+```
+The first time it is used, the command will create and run a docker container with the current repository data. After the first time, the command will only run the previously created container. The container will have installed the Stock and Intel® environments, and will be able to run the reference kit Jupyter Notebook. 
+
+If a rebuild of the docker image is needed the -b flag can be used. And for changing the Jupyter Notebook's port -p flag followed by the port number can be used (by default the assigned port is 8888). Both flags can be used together of separately, e.g.
+```shell
+ ./setup.sh -b -p 8080
+```
+The other alternative is to use conda environments. The script `setupenv.sh` is provided to automate the setup of the conda environments necessary. Once you clone the git repo on your workstation/virtual machine (VM), in the parent directory, execute the following commands
 
 ```shell
+chmod +x setupenv.sh 
 ./setupenv.sh
 ```
 This will prompt for the selection of stock/intel packages. Select 1 for stock
@@ -68,103 +83,7 @@ Once the environment is setup, activate the stock environment using the followin
 ```shell
 conda activate FraudDetection_stock
 ```
-You can then move ahead to training an LGBM model using stock packages
-
-### **Data Ingestion**
-
-Please download the data using the instructions provided in the /data folder and save it as creditcard.csv in the same location. The dataset has details of more than 280,000 credit card transactions with 30 columns serve as the features for model build and a "Class" label of 0 (legitimate transaction) and 1 (fraudulent transaction). The data is read as a pandas dataframe and split into train/test portions in the training and hyperparameter tuning scripts. The training set will be used clustering and LGBM training whereas the test set will be used as "new" data for inference while evaluating accuracy.
-
-
-### **Clustering + Training/Hyperparameter Tuning**
-
-The clustering and training portion of the benchmarking can be run using the python script `run_benchmarks_train.py`. The script **reads data**, **performs DBSCAN clustering** and filters data belonging to a cluster which has the maximum proportion of fraudulent transactions.
-
-The script then **trains an LGBM model** on the full dataset **(~200K data points with <0.2% Fraud Rate)** as well as the clustered data **(<1000 data points with >30% Fraud Rate)**. Both trained models are saved for inference - doing so will help us quantify the benefit of using clustering as opposed to using the full dataset directly for model training. This script will also report on the execution time for these steps. 
-
-The run benchmark script takes the following arguments:
-
-```shell
-usage: run_benchmarks_train.py [-l LOGFILE] [-i]
-
-optional arguments:
-  -l LOGFILE, --logfile LOGFILE
-                        log file to output benchmarking results to
-  -i, --intel           use intel accelerated technologies where available
-```
-
-To run with stock technologies, logging the performance to `logs`, we would run (after creating the appropriate environment as above):
-```shell
-python ./src/run_benchmarks_train.py -l ./logs/stock_training.log
-```
-
-The hyperparameter tuning exercise can be run by following the same procedure as described for training. It goes through the same steps prior to the supervised ML portion of the pipeline (ingestion & clustering). Following these, instead of training, the script would perform hyperparameter tuning over a predefined parameter dictionary. Only substiturion would be to execute the script `run_benchmarks_hyper.py` instead of `run_benchmarks_train.py`. This execution expects the same arguments as the training case does. 
-
- Once again, the execution times will be reported and the trained models (using full and clustered data) will be saved for use by the prediction benchmarking script. Following are examples of how the hyperparameter tuning jobs can be triggered.
-
-For stock technologies
-```shell
-python ./src/run_benchmarks_hyper.py -l logs/stock_hyper.log
-```
-
-The following is a brief description of the outputs of clustering/training/hyperparameter tuning portion of the pipeline:
-
-#### **Expected Input Output for Training/Hyperparameter Tuning**
-
-**Input:**
-| **Section**                   | **Expected Input**                   
-| :---                          | :---                                  
-| Clustering                    | Portion of the Feature data which is dedicated to the training component of the ML pipeline                            
-| Training/Hyperparameter tuning | Feature data post clustering as well as the full training feature data along with the respective labels.
-
-<br>
-
-**Output:**
-| **Section**                   | **Expected Output**                   | **Comment**
-| :---                          | :---                                  | :--- 
-| Clustering                    | Cluster id to which each data row is assigned (-1, 0, 1...)                                 | The cluster output is not saved to an output file but appended to the dataframe as a column. The cluster column is then used to filter the data to maximize proportion of fraudulent data. The filtered data is subsequently used for model trainng
-| Training/Hyperparameter tuning | Model pkl files pertaining to traning using full/clustered data <br> **Clustered_LGBM_Classifier.pkl** <br> **Full_LGBM_Classifier.pkl**     | The pkl files are saved as output in the parent directory
-
-### **Model Inference - Batch**
-
-The saved models then can be used for batch inference. For this purpose, we will exectue the  `run_benchmarks_predict.py`. It takes the following arguments: 
-
-```shell
-usage: run_bechmarks-predict.py [-l LOGFILE] [-i] [-mc clusteredmodel] [-mc fullmodel] [-s]
-
-optional arguments:
-  -l  --logfile             log file to output benchmarking results to
-  -i, --intel               use Intel optimized libraries where available
-  -mc --clusteredmodel      pkl file of model created using clustered data
-  -mf --fullmodel           pkl file of model created using full data
-  -s  --streaming           run streaming inference if true
-```
-To run with stock technologies, we would run:
-
-```shell
-python ./src/run_benchmarks_predict.py -mc Clustered_LGBM_Classifier.pkl -mf Full_LGBM_Classifier.pkl -l ./logs/stock_batch.log
-```
-
-For streaming inference execute the following command:
-```shell
-python ./src/run_benchmarks_predict.py -s -mc Clustered_LGBM_Classifier.pkl -mf Full_LGBM_Classifier.pkl -l ./logs/stock_streaming.log
-```
-
-#### **Expected Input and Output for Inference**
-
-**Input:**
-
-| **Section**                   | **Expected Input**                   
-| :---                          | :---                                  
-| Batch Prediction                   | Portion of the data which is dedicated to testing. The dataset is also duplicated & shuffled to investigate if behavior changes with size. Corresponding labels are also passed as input.
-| Streaming Prediction               | Similar to batch prediction, but inference is run over a randomly selected single row multiple times to simulate inference on streaming data.
-
-<br>
-
-**Output:**
-| **Section**                   | **Expected Output**                   | **Comment**
-| :---                          | :---                                  | :--- 
-| Batch  Prediction                       | Array of prediction classes of whether a transaction is legitimate or fraudulent (0 for legitimate and 1 for fraudulent). Inference is run for both models, i.e. trained using clustered data as well as full data.                                 | The array is used to calculate f1_scores as well as confusion matrices for the respective models. This will help us compare the performance of the two models. The f1_score is written to the log file and the confusion matrix is saved as a png file in the working directory
-| Streaming Prediction | Prediction class for a single transaction (0 for legitimate and 1 for fraudulent)     | Primary objective of running streaming inference is to benchmark time taken for prediction. Average time for a single prediction (over 1000 rows) is written to the log file.
+You can then move ahead to [training](#python-scripts-and-jupyter-notebook) an LGBM model using stock packages.
 
 ## **Optimizing the Reference solution using libraries from the  Intel AI Analytics Toolkit**
 
@@ -187,7 +106,7 @@ The **expected output** for the optimized is also similar to what we observer fo
 
 The Intel® Distribution for Python provides an accelerated version of Python that leverages the expanded instruction set of Intel® hardware as well as Intel® Performance Libraries to improve near native-performance.
 
-#### **Intel Extension for Scikit-learn**
+#### **Intel® Extension for Scikit-learn**
 
 Intel® Extension for Scikit-Learn* provides a seamless way to accelerate the stock scikit-learn packages for machine learning. This extension package dynamically patches scikit-learn estimators to use Intel® oneAPI Data Analytics Library (oneDAL) as the underlying solver, which helps accelerate training and inference performance.
 
@@ -197,9 +116,10 @@ daal4py is part of the  Intel oneAPI DAL library. daal4py converted LGBM models 
 
 ### **Setting up Intel Environment**
 
-Follow the same instructions as the ones for setting up a stock environment. Execute the following command
+Follow the same instructions as the ones for setting up a stock environment. Execute the following commands
 
 ```shell
+chmod +x setupenv.sh 
 ./setupenv.sh
 ```
 This will prompt for the selection of stock/intel packages. Select 2 for intel.
@@ -214,37 +134,19 @@ Once the environment is setup, activate the intel environment using the followin
 ```shell
 conda activate FraudDetection_intel
 ```
-You can then move ahead to training an LGBM model using intel packages. 
+You can then move ahead to [training](#python-scripts-and-jupyter-notebook) an LGBM model using intel packages. 
 
-### **Training/Hyperparameter Tuning**
-
-There will be only one change here compared to the command for training a model with the stock packages, the addition of an argument which enables the use of intel-optimized packages, which in case of training/hyperparameter tuning would be Intel Extension for Scikit-Learn. Once again here the training/hyperparameter tuning exercise will be run for the full dataset **(~200K data points with <0.2% Fraud Rate)** as well as the clustered data **(<1000 data points with >30% Fraud Rate)**. 
-
-To run with intel technologies, logging the performance to `logs`, we would run (after activating the intel environment):
-
+## **Python Scripts and Jupyter Notebook**
+To run the Python benchmark scripts for this reference kit you can find the instructions in the following [GettingStarted.ipynb](GettingStarted.ipynb) Jupyter Notebook. To be able to see the instructions, the Notebook can be displayed by activating either **FraudDetection_stock** or **FraudDetection_intel** environment and running the following command on the parent directory of the reference kit and selecting **GettingStarted.ipynb** from Jupyter's main dashboard
 ```shell
-python ./src/run_benchmarks_train.py -i -l ./logs/intel_training.log
+jupyter notebook
 ```
-
-For hyperparameter tuning, execute the following command:
-
+Once in **GettingStarted.ipynb**, you can either run the commands by following the instructions on the Notebook.
+To run the Notebook from a docker container, execute the following command on the docker directory
 ```shell
-python ./src/run_benchmarks_hyper.py -i -l logs/intel_hyper.log
+docker-compose up
 ```
-
-### **Model Inference**
-
-Model inference in an intel environment will leverage the daal4py module which will convert the existing LGBM model into an optimized version. The optimized model will then be used for batch/streaming prediction. The benefit of using this daal4py version of the model is key to the solution as it means faster inference times, which we will see from the plots in the results section.
-
-For batch inference, execute the following command:
-```shell
-python ./src/run_benchmarks_predict.py -i -mc Clustered_LGBM_Classifier.pkl -mf Full_LGBM_Classifier.pkl -l ./logs/stock_batch.log
-```
-
-For streaming inference execute the following command
-```shell
-python ./src/run_benchmarks_predict.py -s -i -mc Clustered_LGBM_Classifier.pkl -mf Full_LGBM_Classifier.pkl -l ./logs/stock_batch.log
-```
+Once in Jupyter's main dashboard you can access the Notebook.
 
 ## **Comparing Performance Benefits**
 
@@ -262,7 +164,6 @@ Intel optimizations can be applied to DBSCAN Clustering through Intel Extension 
 2. Using daal4py accelerates performance by up to 3.86x for batch inference, which is critical in model development. More importantly it is 4.15x faster for streaming inference. This means inference can happen either much quicker or on a less powerful edge location when the model is deployed in the field.
 3. The performance benefit of using post-clustering data translates into a higher accuracy. For a model trained using clustered data, we get a higher f1_score (0.92) compared to that for a model trained using the full dataset (0.89). This is significant because of the scale at which financial transactions occur. About 100 million credit card transactions occur every day in the US. Assuming 0.2% (200000) transactions are fraudulent, a 3% better accuracy would mean up to 6000 more transactions would be correctly classified, daily.
 
-**Note on Inference Numbers:** Once a 70/30 train-test split is done on the original dataset, the test dataset has ~85K samples. As you can see from the chart for inference benchmarks, we have reported data for 170K, 425K and 850K. This was done via duplicating the test dataset purely to investigate how a larger datasize would affect scalability of the performance because in the real world, it is likely that the dataset sizes would be much larger than the ones chosen here.
 
 #### 1. Executing DBSCAN clustering using stock scikit-learn vs. Intel® Extension for Scikit-Learn
 
@@ -298,7 +199,7 @@ Fraud detection can be a compute intensive operation for inference workloads giv
 
 **Note on the Hardware Infrastructure:** The Azure based D8s_v5 machine was chosen as a typical VM used by customers. Please do not consider this as a recommendation for the workloads benchmarked here. Users are free to choose other architectures as well. However, please keep in mind that the performance gains may vary with the machine charactersistics such as generation, base speed, processor count, memory etc.
 
-### Dataset and Base code
+### Dataset and Base Code
 
 The dataset used for this demo is a set of ~280K credit card transactions made in September 2013 by European cardholders. The base code was also sourced from Kaggle and can be found at the following location: <br>
 https://www.kaggle.com/datasets/mlg-ulb/creditcardfraud
