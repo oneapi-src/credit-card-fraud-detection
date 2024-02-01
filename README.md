@@ -1,3 +1,14 @@
+PROJECT NOT UNDER ACTIVE MANAGEMENT
+
+This project will no longer be maintained by Intel.
+
+Intel has ceased development and contributions including, but not limited to, maintenance, bug fixes, new releases, or updates, to this project.  
+
+Intel no longer accepts patches to this project.
+
+If you have an ongoing need to use this project, are interested in independently developing it, or would like to maintain patches for the open source software community, please create your own fork of this project.  
+
+Contact: webadmin@linux.intel.com
 # **Fraud Detection using an ensemble technique - Intel optimized DBSCAN clustering followed by Light Gradient Boosted Model (LGBM)**
 
 Credit card transactions can be stratified using DBSCAN clustering. The stratified data then can be used to train an LGBM model to identify fraudulent transactions. The Intel AI Analytics Toolkit (AI Kit) gives data scientists, AI developers, and researchers familiar Python tools and frameworks to accelerate end-to-end data science and analytics pipelines on Intel architectures. The components are built using oneAPI libraries for low-level compute optimizations.We will use the The Intel Extension for Scikit-learn and daal4py to accelerate the clustering and inference stages of this solution.
